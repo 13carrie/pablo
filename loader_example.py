@@ -20,7 +20,7 @@ print("NumPy version: {}".format(np.__version__))
 
 # TODO: all columns in the CSV should align, data should be complete and valid
 # Reading CSV files, and merging all of them into a single DataFrame
-root_folder = '/Users/carriesmith37/Documents/undergrad-dissertation/code/MachineLearningCVE/'
+root_folder = os.getcwd() + "/MachineLearningCVE/"
 df = pd.DataFrame()
 for f in os.listdir(root_folder):
     print("Reading: ", f)
