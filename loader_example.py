@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
+# initial loader example by Giovanni Apruzzese from the University of Liechtenstein, 2022
 
 import pandas as pd
 import numpy as np
