@@ -1,14 +1,18 @@
 #!/usr/bin/env python
+# pablo -- Portscan And Bruteforce Learner Of anomalies 0:)
 # coding: utf-8
 # initial loader example by Giovanni Apruzzese from the University of Liechtenstein, 2022
+# portscan/bruteforce/patator dataset modification and SHAP explainability by Caroline Smith
+# from King's College London, 2024
 
-import pandas as pd
+import os
+import time
 import numpy as np
-import os, time
+import pandas as pd
 import sklearn
-from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, f1_score
+from splitter import even_split
 
 print("scikit-learn version: {}".format(sklearn.__version__))
 print("Pandas version: {}".format(pd.__version__))
@@ -16,9 +20,9 @@ print("NumPy version: {}".format(np.__version__))
 
 # The code below assumes that you have already downloaded the CICIDS17 dataset in the "machine learning" format,
 # and extracted the corresponding archive. The unzipped archive should contain 8 files, each placed into a folder,
-# which we will be referred to as "root folder" in this notebook
+# which we will be referred to as "root folder" in this program
 
-# TODO: all columns in the CSV should align, data should be complete and valid
+# keep this part as is
 # Reading CSV files, and merging all of them into a single DataFrame
 root_folder = os.getcwd() + "/MachineLearningCVE/"
 df = pd.DataFrame()
@@ -26,24 +30,28 @@ for f in os.listdir(root_folder):
     print("Reading: ", f)
     df = df._append(pd.read_csv(os.path.join(root_folder + f)))
 
-# QUICK PREPROCESSING.
+# PREPROCESSING.
 # Some classifiers do not like "infinite" (inf) or "null" (NaN) values.
 df.replace([np.inf, -np.inf], np.nan, inplace=True)
 print("Columns with problematic values: ", list(df.columns[df.isna().any()]))
 df.dropna(inplace=True)
+print("First five lines:", df.head())
+
 
 # Show all columns (we need to see which column is the 'Ground Truth' of each sample, and which will be the features
 # used to describe each sample)
 df.columns
 
-# This is the ground truth column. Let's show which classes contains
+# This is the ground truth column. Let's show which classes it contains
 df[' Label'].unique()
 
+# TODO: split data into contains portscan/bruteforce/patator and doesn't contain p/b/p
 # Create a new column that unifies all malicious classes into a single class for binary classification
 df['GT'] = np.where(df[' Label'] == 'BENIGN', 'Benign', 'Malicious')
 
 # Simple split
-train, test = train_test_split(df, test_size=0.5)
+# TODO: create subsets of train -- sub_train and validation
+train, test = even_split(df)
 
 # Define the features used by the classifier
 features = pd.Index([' Destination Port', ' Flow Duration', ' Total Fwd Packets',
@@ -75,6 +83,7 @@ features = pd.Index([' Destination Port', ' Flow Duration', ' Total Fwd Packets'
 
 # Train and test a (binary) RandomForestClassifier, printing some basic performance scores, training time,
 # and confusion matrix
+print("Beginning training...")
 start = time.time()
 rfClf_bin = RandomForestClassifier(n_jobs=-2)
 rfClf_bin.fit(train[features], train['GT'])
@@ -84,18 +93,6 @@ predictions_bin = rfClf_bin.predict(test[features])
 print("Acc: {:3f}".format(accuracy_score(test['GT'], predictions_bin)))
 print("F1-score: {:3f}".format(f1_score(test['GT'], predictions_bin, pos_label='Malicious')))
 pd.crosstab(test['GT'], predictions_bin, rownames=['True'], colnames=['Pred'])
-
-# Train and test a (multiclass) RandomForestClassifier, printing some basic performance scores, training time,
-# and confusion matrix
-start = time.time()
-rfClf_multi = RandomForestClassifier(n_jobs=-2)
-rfClf_multi.fit(train[features], train[' Label'])
-end = time.time() - start
-print("Training time: ", end)
-predictions_multi = rfClf_multi.predict(test[features])
-print("Acc: {:3f}".format(accuracy_score(test[' Label'], predictions_multi)))
-print("F1-score: {:3f}".format(f1_score(test[' Label'], predictions_multi, average='macro')))
-pd.crosstab(test[' Label'], predictions_multi, rownames=['True'], colnames=['Pred'])
 
 # **Where to go from here?**
 # Here are some ways that can be used to kickstart some research on ML-NIDS by using the code above.
