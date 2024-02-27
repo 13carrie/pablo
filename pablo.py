@@ -10,9 +10,10 @@ import time
 import numpy as np
 import pandas as pd
 import sklearn
+import shap
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, f1_score
-from splitter import even_split
+from splitter import random_split
 
 print("scikit-learn version: {}".format(sklearn.__version__))
 print("Pandas version: {}".format(pd.__version__))
@@ -24,7 +25,8 @@ print("NumPy version: {}".format(np.__version__))
 
 # keep this part as is
 # Reading CSV files, and merging all of them into a single DataFrame
-root_folder = os.getcwd() + "/MachineLearningCVE/"
+original_cve = "/MachineLearningCVE/"
+root_folder = os.getcwd() + original_cve
 df = pd.DataFrame()
 for f in os.listdir(root_folder):
     print("Reading: ", f)
@@ -45,13 +47,12 @@ df.columns
 # This is the ground truth column. Let's show which classes it contains
 df[' Label'].unique()
 
-# TODO: split data into contains portscan/bruteforce/patator and doesn't contain p/b/p
 # Create a new column that unifies all malicious classes into a single class for binary classification
 df['GT'] = np.where(df[' Label'] == 'BENIGN', 'Benign', 'Malicious')
 
 # Simple split
 # TODO: create subsets of train -- sub_train and validation
-train, test = even_split(df)
+train, test = random_split(df, 0.5)
 
 # Define the features used by the classifier
 features = pd.Index([' Destination Port', ' Flow Duration', ' Total Fwd Packets',
@@ -83,9 +84,11 @@ features = pd.Index([' Destination Port', ' Flow Duration', ' Total Fwd Packets'
 
 # Train and test a (binary) RandomForestClassifier, printing some basic performance scores, training time,
 # and confusion matrix
+
+seed = 1  # replicating gints and engelen
 print("Beginning training...")
 start = time.time()
-rfClf_bin = RandomForestClassifier(n_jobs=-2)
+rfClf_bin = RandomForestClassifier(max_depth=30, n_estimators=100, random_state=seed, verbose=True, n_jobs=-1)
 rfClf_bin.fit(train[features], train['GT'])
 end = time.time() - start
 print("Training time: ", end)
@@ -94,11 +97,10 @@ print("Acc: {:3f}".format(accuracy_score(test['GT'], predictions_bin)))
 print("F1-score: {:3f}".format(f1_score(test['GT'], predictions_bin, pos_label='Malicious')))
 pd.crosstab(test['GT'], predictions_bin, rownames=['True'], colnames=['Pred'])
 
+print("Beginning explainability portion...")
+
 # **Where to go from here?**
 # Here are some ways that can be used to kickstart some research on ML-NIDS by using the code above.
-# 
-# - **Deal with __inf__ or __NaN__ values.** In the notebook, I removed all of these samples. You may want to keep
-# them by, e.g., assigning them a fixed value
 # - **Tinker with the features.** In the notebook, I used all features available. Some features may be excessively
 # correlated to a given class, which may not be realistic (perhaps a
 # rule-based NIDS, instead of an ML one, can be applied to detect that specific attack.) Some may be useless,
