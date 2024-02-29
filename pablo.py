@@ -12,7 +12,8 @@ import pandas as pd
 import sklearn
 import shap
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, f1_score
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, matthews_corrcoef, \
+    PrecisionRecallDisplay, RocCurveDisplay
 from splitter import random_split
 
 print("scikit-learn version: {}".format(sklearn.__version__))
@@ -23,7 +24,7 @@ print("NumPy version: {}".format(np.__version__))
 # and extracted the corresponding archive. The unzipped archive should contain 8 files, each placed into a folder,
 # which we will be referred to as "root folder" in this program
 
-# keep this part as is
+
 # Reading CSV files, and merging all of them into a single DataFrame
 original_cve = "/MachineLearningCVE/"
 root_folder = os.getcwd() + original_cve
@@ -37,7 +38,6 @@ for f in os.listdir(root_folder):
 df.replace([np.inf, -np.inf], np.nan, inplace=True)
 print("Columns with problematic values: ", list(df.columns[df.isna().any()]))
 df.dropna(inplace=True)
-print("First five lines:", df.head())
 
 
 # Show all columns (we need to see which column is the 'Ground Truth' of each sample, and which will be the features
@@ -51,7 +51,6 @@ df[' Label'].unique()
 df['GT'] = np.where(df[' Label'] == 'BENIGN', 'Benign', 'Malicious')
 
 # Simple split
-# TODO: create subsets of train -- sub_train and validation
 train, test = random_split(df, 0.5)
 
 # Define the features used by the classifier
@@ -82,8 +81,6 @@ features = pd.Index([' Destination Port', ' Flow Duration', ' Total Fwd Packets'
                      ' min_seg_size_forward', 'Active Mean', ' Active Std', ' Active Max',
                      ' Active Min', 'Idle Mean', ' Idle Std', ' Idle Max', ' Idle Min'])
 
-# Train and test a (binary) RandomForestClassifier, printing some basic performance scores, training time,
-# and confusion matrix
 
 seed = 1  # replicating gints and engelen
 print("Beginning training...")
@@ -92,12 +89,19 @@ rfClf_bin = RandomForestClassifier(max_depth=30, n_estimators=100, random_state=
 rfClf_bin.fit(train[features], train['GT'])
 end = time.time() - start
 print("Training time: ", end)
+print("Beginning explainability portion...")
+
 predictions_bin = rfClf_bin.predict(test[features])
 print("Acc: {:3f}".format(accuracy_score(test['GT'], predictions_bin)))
 print("F1-score: {:3f}".format(f1_score(test['GT'], predictions_bin, pos_label='Malicious')))
-pd.crosstab(test['GT'], predictions_bin, rownames=['True'], colnames=['Pred'])
+print("Precision: {:3f}".format(precision_score(test['GT'], predictions_bin, pos_label='Malicious')))
+print("Recall: {:3f}".format(recall_score(test['GT'], predictions_bin, pos_label='Malicious')))
+print("Matthews Correlation Coefficient (MCC): {:3f}".format(matthews_corrcoef(test['GT'], predictions_bin)))
 
-print("Beginning explainability portion...")
+# rfClf_pr_display = PrecisionRecallDisplay.from_predictions(test['GT'], predictions_bin, pos_label='Malicious')
+# rfClf_roc_display = RocCurveDisplay.from_predictions(test['GT'], predictions_bin, pos_label='Malicious')
+
+pd.crosstab(test['GT'], predictions_bin, rownames=['True'], colnames=['Pred'])
 
 # **Where to go from here?**
 # Here are some ways that can be used to kickstart some research on ML-NIDS by using the code above.
@@ -106,10 +110,6 @@ print("Beginning explainability portion...")
 # rule-based NIDS, instead of an ML one, can be applied to detect that specific attack.) Some may be useless,
 # and can be removed. In some cases, some features will be 'categorical', and you must choose how to deal with them (
 # e.g., factorize, or onehotencoding).
-# - **Change the train:test split.** In the notebook, I simply randomly split
-# the initial dataset. You may want to do this on a "class" basis (e.g., take 80% of benign samples and 20% of
-# malicious samples for train, and put the rest in test). You may even want to see what happens as fewer data is
-# provided in the training set.
 # - **Use Validation partition for parameter optimization.** In the notebook,
 # I simply split data into train and test, and fed such data to a RandomForestClassifier using default parameters.
 # You may want to optimize the performance of such classifier, but to do it fairly you must **not** use the test set.
@@ -123,12 +123,6 @@ print("Beginning explainability portion...")
 # notebook only uses a classifier based on the Random Forest algorithm. There are many more classifiers available on
 # scikit-learn. You can even, e.g., devise ensembles of classifiers (consider looking into the [mlxtend](
 # http://rasbt.github.io/mlxtend/) library), each focused on a single attack.
-# - **Consider deep learning.** The code
-# above uses scikit-learn. You can move everything to TensorFlow and use Deep Neural Networks (warning: do this only
-# if you have a GPU!) - **Choose a different dataset**. The experiments on this notebook only apply to the CICIDS17
-# dataset. Given that network environments are very diverse, I strongly suggest repeating other experiments on a
-# different dataset and see if the resulting performance is comparable. Alternatively, you can consider subsets of
-# CICIDS17 (e.g., only one day)
 # - **Visualizations!** The code above only prints the results and corresponding
 # confusion matrix. You may want to visualize the results with proper graphs (via e.g., matplotlib, or seaborn).
 # 
