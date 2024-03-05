@@ -48,6 +48,7 @@ df.columns
 df[' Label'].unique()
 
 # Create a new column that unifies all malicious classes into a single class for binary classification
+#
 df['GT'] = np.where(df[' Label'] == 'BENIGN', 'Benign', 'Malicious')
 
 # Simple split
@@ -92,6 +93,7 @@ print("Training time: ", end)
 print("Beginning explainability portion...")
 
 predictions_bin = rfClf_bin.predict(test[features])
+
 print("Acc: {:3f}".format(accuracy_score(test['GT'], predictions_bin)))
 print("F1-score: {:3f}".format(f1_score(test['GT'], predictions_bin, pos_label='Malicious')))
 print("Precision: {:3f}".format(precision_score(test['GT'], predictions_bin, pos_label='Malicious')))
@@ -110,19 +112,10 @@ pd.crosstab(test['GT'], predictions_bin, rownames=['True'], colnames=['Pred'])
 # rule-based NIDS, instead of an ML one, can be applied to detect that specific attack.) Some may be useless,
 # and can be removed. In some cases, some features will be 'categorical', and you must choose how to deal with them (
 # e.g., factorize, or onehotencoding).
-# - **Use Validation partition for parameter optimization.** In the notebook,
-# I simply split data into train and test, and fed such data to a RandomForestClassifier using default parameters.
-# You may want to optimize the performance of such classifier, but to do it fairly you must **not** use the test set.
-# Doing this requires to split the train set into two distinct partitions: a "sub_train" and a "validation"
-# partition.
 # - **Use grid-search for automatic parameter tuning, or cross-validation (or repeated random samplings)
 # to increase the confidence of the results.** The notebook only trains (and tests) an ML model once. The resulting
 # performance can be biased (e.g., it can be due to a lucky sampling for train or test). To derive more statistically
 # significant results, more trials should be done.
-# - **Explore different Classifiers and Architectures.** The
-# notebook only uses a classifier based on the Random Forest algorithm. There are many more classifiers available on
-# scikit-learn. You can even, e.g., devise ensembles of classifiers (consider looking into the [mlxtend](
-# http://rasbt.github.io/mlxtend/) library), each focused on a single attack.
 # - **Visualizations!** The code above only prints the results and corresponding
 # confusion matrix. You may want to visualize the results with proper graphs (via e.g., matplotlib, or seaborn).
 # 
