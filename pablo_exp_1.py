@@ -1,20 +1,26 @@
 #!/usr/bin/env python
-# pablo -- Portscan And Bruteforce Learner Of anomalies 0:)
+# pablo -- Portscan And Bruteforce Learner Of anomalies, experiment 1
+# pablo exp 1 is the first pablo prototype; it trains and tests on CICIDS2017, and utilises SHAP for explainability
 # coding: utf-8
 # initial loader example by Giovanni Apruzzese from the University of Liechtenstein, 2022
 # portscan/bruteforce/patator dataset modification and SHAP explainability by Caroline Smith
 # from King's College London, 2024
 
-import os
 import time
 import numpy as np
 import pandas as pd
+import os
+from pyspark.sql import SparkSession
 import sklearn
 import shap
 from sklearn.ensemble import RandomForestClassifier
+from pyspark.mllib.tree import RandomForest
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, matthews_corrcoef, \
     PrecisionRecallDisplay, RocCurveDisplay
 from splitter import random_split
+from pyspark import SparkContext, SparkConf
+import pyspark.sql.functions as F
+from pyspark.sql.types import *
 
 print("scikit-learn version: {}".format(sklearn.__version__))
 print("Pandas version: {}".format(pd.__version__))
@@ -26,35 +32,31 @@ print("NumPy version: {}".format(np.__version__))
 
 
 # Reading CSV files, and merging all of them into a single DataFrame
+spark = SparkSession.builder.getOrCreate()
 original_cve = "/MachineLearningCVE/"
 root_folder = os.getcwd() + original_cve
-df = pd.DataFrame()
+pandas_df = pd.DataFrame()
 for f in os.listdir(root_folder):
     print("Reading: ", f)
-    df = df._append(pd.read_csv(os.path.join(root_folder + f)))
+    pandas_df = pd.concat([pandas_df, pd.read_csv(os.path.join(root_folder + f))])
 
 # PREPROCESSING.
-# Some classifiers do not like "infinite" (inf) or "null" (NaN) values.
-df.replace([np.inf, -np.inf], np.nan, inplace=True)
-print("Columns with problematic values: ", list(df.columns[df.isna().any()]))
-df.dropna(inplace=True)
-
-
-# Show all columns (we need to see which column is the 'Ground Truth' of each sample, and which will be the features
-# used to describe each sample)
-df.columns
+# Deleting columns with NaN/infinite values
+pandas_df.replace([np.inf, -np.inf], np.nan, inplace=True)
+print("Columns with problematic values: ", list(pandas_df.columns[pandas_df.isna().any()]))
+pandas_df.dropna(inplace=True)
+df = spark.createDataFrame(pandas_df)
 
 # This is the ground truth column. Let's show which classes it contains
-df[' Label'].unique()
+print("Unique labels: ", df[' Label'].unique())
 
 # Create a new column that unifies all malicious classes into a single class for binary classification
-#
-df['GT'] = np.where(df[' Label'] == 'BENIGN', 'Benign', 'Malicious')
+pandas_df['GT'] = np.where(pandas_df[' Label'] == 'BENIGN', 'Benign', 'Malicious')
 
 # Simple split
-train, test = random_split(df, 0.5)
+train, test = random_split(pandas_df, 0.5)
 
-# Define the features used by the classifier
+# Define the features used by the classifier, i.e. X
 features = pd.Index([' Destination Port', ' Flow Duration', ' Total Fwd Packets',
                      ' Total Backward Packets', 'Total Length of Fwd Packets',
                      ' Total Length of Bwd Packets', ' Fwd Packet Length Max',
@@ -82,34 +84,44 @@ features = pd.Index([' Destination Port', ' Flow Duration', ' Total Fwd Packets'
                      ' min_seg_size_forward', 'Active Mean', ' Active Std', ' Active Max',
                      ' Active Min', 'Idle Mean', ' Idle Std', ' Idle Max', ' Idle Min'])
 
-
-seed = 1  # replicating gints and engelen
 print("Beginning training...")
-start = time.time()
-rfClf_bin = RandomForestClassifier(max_depth=30, n_estimators=100, random_state=seed, verbose=True, n_jobs=-1)
-rfClf_bin.fit(train[features], train['GT'])
-end = time.time() - start
-print("Training time: ", end)
-print("Beginning explainability portion...")
+# start = time.time()
+#
+# # replicating gints and engelen hyperparams
+#
+# # rfClf_bin = RandomForestClassifier(max_depth=30, n_estimators=100, verbose=True, n_jobs=-1)
+# # rfClf_bin.fit(train[features], train['GT'])
+# end = time.time() - start
+# print("Training time: ", end)
+# predictions_bin = rfClf_bin.predict(test[features])
 
-predictions_bin = rfClf_bin.predict(test[features])
-
-print("Acc: {:3f}".format(accuracy_score(test['GT'], predictions_bin)))
-print("F1-score: {:3f}".format(f1_score(test['GT'], predictions_bin, pos_label='Malicious')))
-print("Precision: {:3f}".format(precision_score(test['GT'], predictions_bin, pos_label='Malicious')))
-print("Recall: {:3f}".format(recall_score(test['GT'], predictions_bin, pos_label='Malicious')))
-print("Matthews Correlation Coefficient (MCC): {:3f}".format(matthews_corrcoef(test['GT'], predictions_bin)))
+# print("Acc: {:3f}".format(accuracy_score(test['GT'], predictions_bin)))
+# print("F1-score: {:3f}".format(f1_score(test['GT'], predictions_bin, pos_label='Malicious')))
+# print("Precision: {:3f}".format(precision_score(test['GT'], predictions_bin, pos_label='Malicious')))
+# print("Recall: {:3f}".format(recall_score(test['GT'], predictions_bin, pos_label='Malicious')))
+# print("Matthews Correlation Coefficient (MCC): {:3f}".format(matthews_corrcoef(test['GT'], predictions_bin)))
 
 # rfClf_pr_display = PrecisionRecallDisplay.from_predictions(test['GT'], predictions_bin, pos_label='Malicious')
 # rfClf_roc_display = RocCurveDisplay.from_predictions(test['GT'], predictions_bin, pos_label='Malicious')
+# pd.crosstab(test['GT'], predictions_bin, rownames=['True'], colnames=['Pred'])
 
-pd.crosstab(test['GT'], predictions_bin, rownames=['True'], colnames=['Pred'])
+# compute SHAP values
+print("Beginning SHAP value computation...")
 
+# apache spark framework
+start = time.time()
+
+# explainer = shap.TreeExplainer(rfClf_bin)
+# shap_values = explainer(train[features], check_additivity=False)
+
+# force plot for SHAP values
+# shap.plots.force(shap_values[0:100])
+end = time.time() - start
+print("SHAP computation time: ", end)
 # **Where to go from here?**
 # Here are some ways that can be used to kickstart some research on ML-NIDS by using the code above.
 # - **Tinker with the features.** In the notebook, I used all features available. Some features may be excessively
-# correlated to a given class, which may not be realistic (perhaps a
-# rule-based NIDS, instead of an ML one, can be applied to detect that specific attack.) Some may be useless,
+# correlated to a given class, which may not be realistic. Some may be useless,
 # and can be removed. In some cases, some features will be 'categorical', and you must choose how to deal with them (
 # e.g., factorize, or onehotencoding).
 # - **Use grid-search for automatic parameter tuning, or cross-validation (or repeated random samplings)
@@ -118,8 +130,6 @@ pd.crosstab(test['GT'], predictions_bin, rownames=['True'], colnames=['Pred'])
 # significant results, more trials should be done.
 # - **Visualizations!** The code above only prints the results and corresponding
 # confusion matrix. You may want to visualize the results with proper graphs (via e.g., matplotlib, or seaborn).
-# 
-# 
 # **Tip**: to avoid wasting time, always save your results and also consider saving your ML models (or datasets) as
 # pickle files! Nothing is more painful than doing a bunch of experiments and then losing everything!
 #
