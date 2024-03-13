@@ -1,0 +1,1 @@
+Assumes that in the same directory as pablo_exp_1, you have a folder MachineLearningCVE which contains modified versions of all CICIDS2017 CSV files so that there is only one 'Fwd Header Length' column
