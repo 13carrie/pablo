@@ -80,7 +80,6 @@ end = time.time() - start
 print("Training pipeline time: ", end)
 
 print("Beginning model testing...")
-prediction = rf_model.transform(test_data)
 
 # predictions_bin = rfClf_bin.predict(test[features])
 
