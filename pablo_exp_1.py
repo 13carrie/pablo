@@ -3,25 +3,24 @@
 # pablo exp 1 is the first pablo prototype; it trains and tests on CICIDS2017, and utilises SHAP for explainability
 # coding: utf-8
 # initial loader example by Giovanni Apruzzese from the University of Liechtenstein, 2022
-# portscan/bruteforce/patator dataset modification and SHAP explainability by Caroline Smith
-# from King's College London, 2024
-
+# spark implementation, portscan/bruteforce/patator dataset modification, and SHAP explainability by Caroline Smith
+# King's College London, 2024
+import os
 import time
 import numpy as np
 import pandas as pd
-import os
+from pyspark.sql.functions import when
 import sklearn
+import matplotlib.pyplot as plt
 import shap
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, matthews_corrcoef, \
     PrecisionRecallDisplay, RocCurveDisplay
-from splitter import random_split
 from pyspark.mllib.tree import RandomForest
 from pyspark.sql import SparkSession
-from pyspark.pandas import read_csv
 from pyspark import SparkContext, SparkConf
-import pyspark.sql.functions as F
-from pyspark.sql.types import *
+from pyspark.ml.feature import StringIndexer, OneHotEncoder
+from pyspark.sql.types import StringType, StructType, StructField, IntegerType
+from pyspark.sql.functions import *
 
 print("scikit-learn version: {}".format(sklearn.__version__))
 print("Pandas version: {}".format(pd.__version__))
@@ -32,35 +31,37 @@ print("NumPy version: {}".format(np.__version__))
 # which we will be referred to as "root folder" in this program
 
 
+
+# Creating new Spark Session configured with larger memory space
+spark = SparkSession.builder.appName("Pablo Experiment 1")\
+    .config("spark.driver.memory", "15g")\
+    .getOrCreate()
+
 # Reading CSV files, and merging all of them into a single DataFrame
-spark = SparkSession.builder.getOrCreate()
-original_cve = "/MachineLearningCVE/"
-root_folder = os.getcwd() + original_cve
-df = read_csv(os.path.join(root_folder + "*.csv"))
+original_csvs = "/MachineLearningCVE/"
+abs_path = os.getcwd() + original_csvs
+df = spark.read.csv(abs_path, header=True, inferSchema=True)
 
-# PREPROCESSING.
+# PREPROCESSING:
 # Deleting rows with NaN/infinite values for a feature
-df.replace([np.inf, -np.inf], np.nan, inplace=True)
-print("Columns with problematic values: ", list(df.columns[df.isna().any()]))
-df.dropna()
+df = df.replace(to_replace=[np.inf, -np.inf], value=None)
+df = df.dropna(how="any")  # Deleting any rows with null/None values
+df = df.drop_duplicates()  # Deleting rows with duplicate values for all features
 
-# Deleting rows with duplicate values for all features
-df.drop_duplicates()
+# Create a new column GT that unifies all malicious classes into a single class for binary classification
+# set benign samples = 1, malicious samples = 0 (encoding categorical (Attack) 'Label' feature)
+df = df.withColumn(" Label", when(df[" Label"] == 'BENIGN', 'Benign').otherwise('Malicious'))
+indexer = StringIndexer(inputCol=" Label", outputCol=" GT")
+df = indexer.fit(df).transform(df)
 
-# Deleting duplicate fwd header length column in df
-df.drop([' Fwd Header Length.1'])
 
-# Create a new column that unifies all malicious classes into a single class for binary classification
-# set benign samples = 1, malicious samples = 0 (modifying categorical 'attack class' feature)
-df['GT'] = np.where(df[' Label'] == 'BENIGN', 1, 0)
+# This is now the ground truth column. Show that it contains only 1 and 0 values
+print("Unique ground truth values: ", [i for i in df.select(' GT').distinct().collect()])
 
-df.show(5)
-
-# This is the ground truth column. Let's show which classes it contains
-print("Unique labels: ", df[' Label'].unique())
 
 # Simple split
-train, test = random_split(df, 0.5)
+train, test = df.randomSplit(weights=[0.8, 0.2], seed=1)
+print("Successfully separated training and testing data")
 
 # Define the features used by the classifier, i.e. X
 features = pd.Index([' Destination Port', ' Flow Duration', ' Total Fwd Packets',
@@ -92,23 +93,22 @@ features = pd.Index([' Destination Port', ' Flow Duration', ' Total Fwd Packets'
 
 print("Beginning training...")
 start = time.time()
-# replicating gints and engelen hyperparams
 
-rfClf_bin = RandomForestClassifier(max_depth=30, n_estimators=100, verbose=True, n_jobs=-1)
-rfClf_bin.fit(train[features], train['GT'])
+# replicating gints and engelen hyperparams
+# rfClf_bin = RandomForest.trainClassifier(maxDepth=30, n_estimators=100, verbose=True, n_jobs=-1)
 end = time.time() - start
 print("Training time: ", end)
-predictions_bin = rfClf_bin.predict(test[features])
+# predictions_bin = rfClf_bin.predict(test[features])
 
-print("Acc: {:3f}".format(accuracy_score(test['GT'], predictions_bin)))
-print("F1-score: {:3f}".format(f1_score(test['GT'], predictions_bin, pos_label='Malicious')))
-print("Precision: {:3f}".format(precision_score(test['GT'], predictions_bin, pos_label='Malicious')))
-print("Recall: {:3f}".format(recall_score(test['GT'], predictions_bin, pos_label='Malicious')))
-print("Matthews Correlation Coefficient (MCC): {:3f}".format(matthews_corrcoef(test['GT'], predictions_bin)))
+# print("Acc: {:3f}".format(accuracy_score(test['GT'], predictions_bin)))
+# print("F1-score: {:3f}".format(f1_score(test['GT'], predictions_bin, pos_label='Malicious')))
+# print("Precision: {:3f}".format(precision_score(test['GT'], predictions_bin, pos_label='Malicious')))
+# print("Recall: {:3f}".format(recall_score(test['GT'], predictions_bin, pos_label='Malicious')))
+# print("Matthews Correlation Coefficient (MCC): {:3f}".format(matthews_corrcoef(test['GT'], predictions_bin)))
 
 # rfClf_pr_display = PrecisionRecallDisplay.from_predictions(test['GT'], predictions_bin, pos_label='Malicious')
 # rfClf_roc_display = RocCurveDisplay.from_predictions(test['GT'], predictions_bin, pos_label='Malicious')
-pd.crosstab(test['GT'], predictions_bin, rownames=['True'], colnames=['Pred'])
+# pd.crosstab(test['GT'], predictions_bin, rownames=['True'], colnames=['Pred'])
 
 # compute SHAP values
 # print("Beginning SHAP value computation...")

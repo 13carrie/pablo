@@ -2,12 +2,6 @@ from sklearn.model_selection import train_test_split
 import pandas as pd
 
 
-# splits dataframe into X_train, X_test, y_train, y_test dataframes randomly, with no consideration to underlying
-# class distributions
-def random_split(dataframe, test_size):
-    return train_test_split(dataframe, test_size=test_size)
-
-
 # splits dataframe into stratified train and test dataframes, protecting the underlying class distribution
 # random_state = seed for reproducibility, currently set to 1
 def stratified_split(dataframe, test_size):
