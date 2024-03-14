@@ -24,7 +24,7 @@ spark = SparkSession.builder.appName("Pablo Experiment 1")\
 print("Created new Spark Session")
 
 # Reading CSV files, and merging all of them into a single DataFrame
-original_csvs = "/MachineLearningCVE/"
+original_csvs = "/Data/Raw/MachineLearningCVE/"
 cwd = os.getcwd()
 abs_path = cwd + original_csvs
 df = spark.read.csv(abs_path, header=True, inferSchema=True)
@@ -40,7 +40,7 @@ df = df.drop_duplicates()  # Deleting rows with duplicate values for all feature
 # Create a new column GT that encodes all malicious classes into a single class for binary classification
 # set benign samples = 1, malicious samples = 0
 df = df.withColumn(" Label", when(df[" Label"] == 'BENIGN', 'Benign').otherwise('Malicious'))
-stage_1 = StringIndexer(inputCol=" Label", outputCol=" GT") # create ground truth column
+stage_1 = StringIndexer(inputCol=" Label", outputCol=" GT")  # create ground truth column
 
 # Define the features used by the classifier
 features = [' Destination Port', ' Flow Duration', ' Total Fwd Packets', ' Total Backward Packets',
@@ -79,5 +79,5 @@ end = time.time() - start
 print("Training pipeline time: ", end)
 
 print("Saving model...")
-model_path = cwd + "/pablo_model_1"
+model_path = cwd + "/Scripts/Trained_Models/" + "/pablo_model_1"
 rf_model.save(model_path)

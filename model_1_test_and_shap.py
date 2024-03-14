@@ -1,5 +1,7 @@
 import shap
+from pyspark.ml.classification import RandomForestClassificationModel
 
+model = RandomForestClassificationModel.load("pablo_model_1")
 
 
 # print("Acc: {:3f}".format(accuracy_score(test['GT'], predictions_bin)))
@@ -33,7 +35,5 @@ import shap
 # to increase the confidence of the results.** The notebook only trains (and tests) an ML model once. The resulting
 # performance can be biased (e.g., it can be due to a lucky sampling for train or test). To derive more statistically
 # significant results, more trials should be done.
-# - **Visualizations!** The code above only prints the results and corresponding
-# confusion matrix. You may want to visualize the results with proper graphs (via e.g., matplotlib, or seaborn).
 # **Tip**: to avoid wasting time, always save your results and also consider saving your ML models (or datasets) as
 # pickle files! Nothing is more painful than doing a bunch of experiments and then losing everything!

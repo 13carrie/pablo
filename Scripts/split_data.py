@@ -1,6 +1,7 @@
 from sklearn.model_selection import train_test_split
 import pandas as pd
 
+# TODO: adapt these functions for spark
 
 # splits dataframe into stratified train and test dataframes, protecting the underlying class distribution
 # random_state = seed for reproducibility, currently set to 1
@@ -10,7 +11,7 @@ def stratified_split(dataframe, test_size):
 
 
 # isolates port scan and patator attacks into one dataframe
-def port_patator_isolation_split(dataframe, test_size):
+def port_patator_isolation_split(dataframe):
     df = pd.DataFrame()
     df.append(isolate_attacks(dataframe, ' Label', ['PortScan', 'FTP-Patator', 'SSH-Patator']))
     return df
