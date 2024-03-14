@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-# pablo -- Portscan And Bruteforce Learner Of anomalies, experiment 1
-# pablo exp 1 is the first pablo prototype; it trains and tests on CICIDS2017, and utilises SHAP for explainability
+# pablo -- Portscan And Bruteforce Learner Of anomalies, prototype model 1 out of 3
+# pablo exp 1 is the first pablo prototype; it trains and tests on the original CICIDS2017 dataset
 # coding: utf-8
 # initial loader example by Giovanni Apruzzese from the University of Liechtenstein, 2022
 # spark implementation, portscan/bruteforce/patator dataset modification, and SHAP explainability by Caroline Smith
@@ -8,7 +8,6 @@
 import os
 import time
 import pyspark
-import shap
 from pyspark.ml import Pipeline
 from pyspark.ml.classification import RandomForestClassifier
 from pyspark.sql import SparkSession
@@ -17,21 +16,20 @@ from pyspark.sql.functions import *
 
 print("Pyspark version: {}".format(pyspark.__version__))
 
-# The code below assumes that you have already downloaded the CICIDS17 dataset in the "machine learning" format,
-# and extracted the corresponding archive. The unzipped archive should contain 8 files, each placed into a folder,
-# which we will be referred to as "root folder" in this program
-
-
-
 # Creating new Spark Session configured with larger memory space
 spark = SparkSession.builder.appName("Pablo Experiment 1")\
     .config("spark.driver.memory", "15g")\
     .getOrCreate()
 
+print("Created new Spark Session")
+
 # Reading CSV files, and merging all of them into a single DataFrame
 original_csvs = "/MachineLearningCVE/"
-abs_path = os.getcwd() + original_csvs
+cwd = os.getcwd()
+abs_path = cwd + original_csvs
 df = spark.read.csv(abs_path, header=True, inferSchema=True)
+
+print("New dataframe created")
 
 # PREPROCESSING:
 # Deleting rows with NaN/infinite values for a feature
@@ -70,6 +68,7 @@ stage_3 = RandomForestClassifier(maxDepth=30, numTrees=100, labelCol=" GT", feat
 pipeline = Pipeline(stages=[stage_1, stage_2, stage_3])
 
 training_data, test_data = df.randomSplit([0.7, 0.3])
+print("Train/Test data split successful.")
 
 print("Beginning training pipeline...")
 start = time.time()
@@ -79,42 +78,6 @@ rf_model = pipeline.fit(training_data)
 end = time.time() - start
 print("Training pipeline time: ", end)
 
-print("Beginning model testing...")
-
-# predictions_bin = rfClf_bin.predict(test[features])
-
-# print("Acc: {:3f}".format(accuracy_score(test['GT'], predictions_bin)))
-# print("F1-score: {:3f}".format(f1_score(test['GT'], predictions_bin, pos_label='Malicious')))
-# print("Precision: {:3f}".format(precision_score(test['GT'], predictions_bin, pos_label='Malicious')))
-# print("Recall: {:3f}".format(recall_score(test['GT'], predictions_bin, pos_label='Malicious')))
-# print("Matthews Correlation Coefficient (MCC): {:3f}".format(matthews_corrcoef(test['GT'], predictions_bin)))
-
-# rfClf_pr_display = PrecisionRecallDisplay.from_predictions(test['GT'], predictions_bin, pos_label='Malicious')
-# rfClf_roc_display = RocCurveDisplay.from_predictions(test['GT'], predictions_bin, pos_label='Malicious')
-# pd.crosstab(test['GT'], predictions_bin, rownames=['True'], colnames=['Pred'])
-
-# compute SHAP values
-# print("Beginning SHAP value computation...")
-# start = time.time()
-
-# explainer = shap.TreeExplainer(rfClf_bin)
-# shap_values = explainer(train[features], check_additivity=False)
-
-# force plot for SHAP values
-# shap.plots.force(shap_values[0:100])
-# end = time.time() - start
-# print("SHAP computation time: ", end)
-
-# **Where to go from here?**
-# - **Tinker with the features.** In the notebook, I used all features available. Some features may be excessively
-# correlated to a given class, which may not be realistic. Some may be useless,
-# and can be removed. In some cases, some features will be 'categorical', and you must choose how to deal with them (
-# e.g., factorize, or onehotencoding).
-# - **Use grid-search for automatic parameter tuning, or cross-validation (or repeated random samplings)
-# to increase the confidence of the results.** The notebook only trains (and tests) an ML model once. The resulting
-# performance can be biased (e.g., it can be due to a lucky sampling for train or test). To derive more statistically
-# significant results, more trials should be done.
-# - **Visualizations!** The code above only prints the results and corresponding
-# confusion matrix. You may want to visualize the results with proper graphs (via e.g., matplotlib, or seaborn).
-# **Tip**: to avoid wasting time, always save your results and also consider saving your ML models (or datasets) as
-# pickle files! Nothing is more painful than doing a bunch of experiments and then losing everything!
+print("Saving model...")
+model_path = cwd + "/pablo_model_1"
+rf_model.save(model_path)
