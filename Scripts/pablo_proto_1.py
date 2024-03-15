@@ -7,12 +7,12 @@
 # King's College London, 2024
 import os
 import time
+import sys
 import pyspark
 from pyspark.ml import Pipeline
 from pyspark.ml.classification import RandomForestClassifier
 from pyspark.sql import SparkSession
 from pyspark.ml.feature import VectorAssembler
-# from pyspark.sql.functions import *
 from datetime import datetime
 
 print("Pyspark version: {}".format(pyspark.__version__))
@@ -25,9 +25,10 @@ spark = SparkSession.builder.appName("Pablo Experiment 1")\
 print("Created new Spark Session")
 
 # Loading preprocessed CSV files, and merging all of them into a single DataFrame
-original_csvs = "/Data/Processed/MachineLearningCVE/"
+csv_dir = sys.argv[1]
+csv_dir_path = "/Data/Processed/" + csv_dir
 cwd = os.getcwd()
-abs_path = cwd + original_csvs
+abs_path = cwd + csv_dir_path
 df = spark.read.csv(abs_path, header=True, inferSchema=True)
 
 print("New dataframe created")
