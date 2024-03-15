@@ -3,6 +3,11 @@
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$">
       <excludeFolder url="file://$MODULE_DIR$/venv" />
+      <excludeFolder url="file://$MODULE_DIR$/Data/Processed/ImprovedMachineLearningCVE" />
+      <excludeFolder url="file://$MODULE_DIR$/Data/Processed/MachineLearningCVE" />
+      <excludeFolder url="file://$MODULE_DIR$/Data/Raw/ImprovedMachineLearningCVE" />
+      <excludeFolder url="file://$MODULE_DIR$/Data/Raw/MachineLearningCVE" />
+      <excludeFolder url="file://$MODULE_DIR$/Scripts/Trained_Models" />
     </content>
     <orderEntry type="jdk" jdkName="Python 3.11 (code)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />

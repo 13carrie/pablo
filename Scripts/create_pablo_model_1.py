@@ -72,5 +72,5 @@ print("Training pipeline time: ", end)
 print("Saving model...")
 now = datetime.now()
 
-model_path = cwd + "/Scripts/Trained_Models/pablo_model_1" + now.strftime("%d/%m-%H:%M")
+model_path = cwd + "/Scripts/Trained_Models/pablo_model_1" + now.strftime("-%d-%m-%H:%M")
 rf_model.save(model_path)
