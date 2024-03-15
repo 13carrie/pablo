@@ -1,15 +1,16 @@
 #!/usr/bin/env python
-# pablo -- Portscan And Bruteforce Learner Of anomalies, prototype model 1 out of 3
+# pablo -- Portscan And Bruteforce Learner Of anomalies, prototype saved_model 1 out of 3
 # pablo exp 1 is the first pablo prototype; it trains and tests on the original CICIDS2017 dataset
 # coding: utf-8
 # initial loader example by Giovanni Apruzzese from the University of Liechtenstein, 2022
 # spark implementation, portscan/bruteforce/patator dataset modification, and SHAP explainability by Caroline Smith
 # King's College London, 2024
+
 import os
 import time
 import sys
 import pyspark
-from pyspark.ml import Pipeline
+from pyspark.ml import Pipeline, PipelineModel
 from pyspark.ml.classification import RandomForestClassifier
 from pyspark.sql import SparkSession
 from pyspark.ml.feature import VectorAssembler
@@ -29,7 +30,11 @@ csv_dir = sys.argv[1]
 csv_dir_path = "/Data/Processed/" + csv_dir
 cwd = os.getcwd()
 abs_path = cwd + csv_dir_path
-df = spark.read.csv(abs_path, header=True, inferSchema=True)
+
+try:
+    df = spark.read.csv(abs_path, header=True, inferSchema=True)
+except:
+    print("Failed to read csv, please ensure that data has been processed and stored in Data/Processed directory.")
 
 print("New dataframe created")
 
@@ -69,8 +74,16 @@ rf_model = pipeline.fit(training_data)
 end = time.time() - start
 print("Training pipeline time: ", end)
 
-print("Saving model...")
-now = datetime.now()
+# predictions = rf_model.transform(test_data)
+# predictions.select("Label", "label", "features").show(5)
 
-model_path = cwd + "/Scripts/Trained_Models/pablo_model_1" + now.strftime("-%d-%m-%H:%M")
+now = datetime.now()
+unique_identifier = now.strftime("-%d-%m-%H%M")
+
+model_path = cwd + "/Scripts/Trained_Models/pablo_model_1" + unique_identifier
 rf_model.save(model_path)
+print("Saved ", csv_dir, " model")
+
+test_csv_path = cwd + "/Data/Processed-Test/test_data" + unique_identifier
+test_data.write.option("header", True).mode("overwrite").csv(test_csv_path)
+print("Saved test data in Data/Processed-Test directory")

@@ -49,7 +49,7 @@ def clean_dataframe(df: DataFrame) -> DataFrame:
     return df
 
 
-# Uses binary encoding to convert labels to 1 (malicious) or 0 (benign) values
+# Uses binary encoding to convert labels to 1 (benign) or 0 (malicious) values
 def create_ground_truth(df: DataFrame) -> DataFrame:
     df = df.withColumn("GT", when(df["Label"] == 'BENIGN', '1').otherwise('0'))
     df = df.withColumn("GT", col("GT").cast(IntegerType()))
