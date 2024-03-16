@@ -41,11 +41,14 @@ def load_data(csv_path: str) -> DataFrame:
     return df
 
 
-# Deletes rows with NaN/infinite values for a feature
 def clean_dataframe(df: DataFrame) -> DataFrame:
+    # Deletes rows with NaN/infinite values for a feature
     df = df.replace(to_replace=[np.inf, -np.inf], value=None)
     df = df.dropna(how="any")  # Deleting any rows with null/None values
     df = df.drop_duplicates()  # Deleting rows with duplicate values for all features
+
+    # Fixes any leading/trailing whitespace in column names
+    df = df.select([col(c).alias(c.strip()) for c in df.columns])
     return df
 
 

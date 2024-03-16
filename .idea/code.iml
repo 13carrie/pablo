@@ -4,7 +4,7 @@
     <content url="file://$MODULE_DIR$">
       <excludeFolder url="file://$MODULE_DIR$/venv" />
       <excludeFolder url="file://$MODULE_DIR$/Data/Processed/ImprovedMachineLearningCVE" />
-      <excludeFolder url="file://$MODULE_DIR$/Data/Processed/MachineLearningCVE" />
+      <excludeFolder url="file://$MODULE_DIR$/Data/MachineLearningCVE" />
       <excludeFolder url="file://$MODULE_DIR$/Data/Raw/ImprovedMachineLearningCVE" />
       <excludeFolder url="file://$MODULE_DIR$/Data/Raw/MachineLearningCVE" />
       <excludeFolder url="file://$MODULE_DIR$/Scripts/Trained_Models" />
