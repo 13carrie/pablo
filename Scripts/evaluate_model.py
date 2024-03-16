@@ -1,8 +1,11 @@
 import os
 import sys
 # import shap
+import time
 from pyspark.ml import PipelineModel
 from pyspark.sql import SparkSession, DataFrame
+from pyspark.ml.evaluation import MulticlassClassificationEvaluator
+from pyspark.ml.evaluation import BinaryClassificationEvaluator
 
 spark = SparkSession.builder.appName("Pablo Evaluation 1") \
     .config("spark.driver.memory", "15g") \
@@ -21,10 +24,18 @@ def evaluate_model():
 
     # get test and predicted outcome dataframes
     test_df = spark.read.csv(abs_test_dir_path, header=True, inferSchema=True) # recreating test dataframe from test csv
+
+    # get dataframe with additional 'features', 'rawPrediction', 'probability', and 'prediction' columns
+    pred_start = time.time()
     predictions_df = saved_model.transform(test_df)
+    pred_end = time.time() - pred_start
+    print("Time to get prediction outputs: ", pred_end)
 
-    predictions_df.select("Label", "GT", "prediction").show(5)
-
+    # get performance metrics of saved model when tested on test_df, using predictions_df
+    metric_start = time.time()
+    get_prediction_metrics(predictions_df)
+    metric_end = time.time() - metric_start
+    print("Time to get performance metrics: ", metric_end)
 def get_unique_model_info():
     model_name = sys.argv[1]  # retrieve model name stored under trained_models
     model_path = cwd + "/Scripts/Trained_Models/" + model_name  # get absolute path of model
@@ -38,17 +49,34 @@ def get_test_data_directory(model_id):
 
 
 def get_prediction_metrics(predictions_df: DataFrame):
-    # print("Acc: {:3f}")
-    # print("F1-score: {:3f}")
-    # print("Precision: {:3f}")
-    # print("Recall: {:3f}")
+    # assumption that predictions dataframe contains 'features', 'rawPrediction', 'probability', 'prediction' columns
+    eval_accuracy = MulticlassClassificationEvaluator(labelCol="GT", predictionCol="prediction",
+                                                      metricName="accuracy")
+    eval_precision = MulticlassClassificationEvaluator(labelCol="GT", predictionCol="prediction",
+                                                       metricName="precisionByLabel")
+    eval_recall = MulticlassClassificationEvaluator(labelCol="GT", predictionCol="prediction",
+                                                    metricName="recallByLabel")
+    eval_f1 = MulticlassClassificationEvaluator(labelCol="GT", predictionCol="prediction", metricName="f1")
+
+    eval_auc = BinaryClassificationEvaluator(labelCol="GT", rawPredictionCol="prediction")
+
+    accuracy = eval_accuracy.evaluate(predictions_df)
+    f1_score = eval_f1.evaluate(predictions_df)
+    precision = eval_precision.evaluate(predictions_df)
+    recall = eval_recall.evaluate(predictions_df)
+    auc = eval_auc.evaluate(predictions_df)
+
+    print(f"Accuracy: {accuracy}")
+    print(f"F1-score: {f1_score}")
+    print(f"Precision: {precision}")
+    print(f"Recall: {recall}")
+    print(f"AUC (Area Under ROC Curve: {auc}")
     # print("Matthews Correlation Coefficient (MCC): {:3f}")
     return
 
 
 def get_shap_values():
     return
-
 
 evaluate_model()
 
