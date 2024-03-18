@@ -19,10 +19,7 @@ def evaluate_model():
     model_name, abs_model_path, model_id = get_unique_model_info()
     saved_model = PipelineModel.load(abs_model_path)
 
-    # try to load test data, where test data in format test_data- + model_id
-    abs_test_dir_path = get_test_data_directory(model_id)
-
-    # get test and predicted outcome dataframes
+    abs_test_dir_path = get_test_data_directory(model_id)  # try to load test data with filename as [test_data-model_id]
     test_df = spark.read.csv(abs_test_dir_path, header=True, inferSchema=True) # recreating test dataframe from test csv
 
     # get dataframe with additional 'features', 'rawPrediction', 'probability', and 'prediction' columns
@@ -36,11 +33,14 @@ def evaluate_model():
     get_prediction_metrics(predictions_df)
     metric_end = time.time() - metric_start
     print("Time to get performance metrics: ", metric_end)
+
+
 def get_unique_model_info():
     model_name = sys.argv[1]  # retrieve model name stored under trained_models
     model_path = cwd + "/Scripts/Trained_Models/" + model_name  # get absolute path of model
     model_id = model_name.replace('pablo_model_1-', '')  # model_id = remove 'pablo_model_1- from model_name
     return model_name, model_path, model_id
+
 
 def get_test_data_directory(model_id):
     test_dir = "/Data/Processed-Test/" + "test_data-" + model_id  # directory of test data file that matches with model
@@ -72,14 +72,13 @@ def get_prediction_metrics(predictions_df: DataFrame):
     print(f"Recall: {recall}")
     print(f"AUC (Area Under ROC Curve: {auc}")
     # print("Matthews Correlation Coefficient (MCC): {:3f}")
-    return
 
 
 def get_shap_values():
     return
 
-evaluate_model()
 
+evaluate_model()
 
 # compute SHAP values
 # print("Beginning SHAP value computation...")

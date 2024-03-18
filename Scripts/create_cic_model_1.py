@@ -1,20 +1,20 @@
 #!/usr/bin/env python
-# pablo -- Portscan And Bruteforce Learner Of anomalies, prototype saved_model 1 out of 3
-# pablo exp 1 is the first pablo prototype; it trains and tests on the original CICIDS2017 dataset
+# pablo -- Portscan And Bruteforce Learner Of anomalies, prototype saved_model
 # coding: utf-8
-# initial loader example by Giovanni Apruzzese from the University of Liechtenstein, 2022
-# spark implementation, portscan/bruteforce/patator dataset modification, and SHAP explainability by Caroline Smith
+# loader format by Giovanni Apruzzese from the University of Liechtenstein, 2022
+# spark implementation by Caroline Smith
 # King's College London, 2024
 
 import os
 import time
 import sys
 import pyspark
-from pyspark.ml import Pipeline, PipelineModel
+from pyspark.ml import Pipeline
 from pyspark.ml.classification import RandomForestClassifier
 from pyspark.sql import SparkSession
 from pyspark.ml.feature import VectorAssembler
 from datetime import datetime
+from split_data import split_dataset
 
 print("Pyspark version: {}".format(pyspark.__version__))
 
@@ -63,7 +63,8 @@ stage_3 = RandomForestClassifier(maxDepth=30, numTrees=100, labelCol="GT", featu
 
 pipeline = Pipeline(stages=[stage_2, stage_3])
 
-training_data, test_data = df.randomSplit([0.7, 0.3])
+# create train-test split:
+training_data, test_data = split_dataset(df, sys.argv)
 print("Train/Test data split successful.")
 
 print("Beginning training pipeline...")
