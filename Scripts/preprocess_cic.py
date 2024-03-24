@@ -30,7 +30,7 @@ def preprocess_data():
 
 
 
-# Takes a path to a directory as a param and returns a Spark DataFrame with supplied headers
+# Takes a str directory as a param and returns a Spark DataFrame with supplied headers
 def load_data(csv_path: str) -> DataFrame:
     # Loading CSV files, and merging all of them into a single DataFrame
     cwd = os.getcwd()
@@ -40,9 +40,10 @@ def load_data(csv_path: str) -> DataFrame:
     print("New dataframe created")
     return df
 
-
+# gets rid of 'bad data' in the dataframe -- cols causing spurious correlations or with bad data/formatting
 def clean_dataframe(df: DataFrame) -> DataFrame:
     # Deletes rows with NaN/infinite values for a feature
+    df = df.drop('Timestamp', 'Dst IP', 'Src IP', 'Flow ID') # dropping unnecessary columns
     df = df.replace(to_replace=[np.inf, -np.inf], value=None)
     df = df.dropna(how="any")  # Deleting any rows with null/None values
     df = df.drop_duplicates()  # Deleting rows with duplicate values for all features
