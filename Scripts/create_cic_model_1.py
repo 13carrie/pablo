@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# pablo -- Portscan And Bruteforce Learner Of attacks, prototype trained_model
+# pablo -- Portscan And Bruteforce Learner Of attacks, this creates prototype trained_model for pablo
 # coding: utf-8
 # loader format by Giovanni Apruzzese from the University of Liechtenstein, 2022
 # spark implementation by Caroline Smith
@@ -10,9 +10,13 @@ import time
 import sys
 import pyspark
 from pyspark.ml.classification import RandomForestClassifier
+from pyspark.ml.functions import vector_to_array
 from pyspark.sql import SparkSession
 from pyspark.ml.feature import VectorAssembler
 from datetime import datetime
+from pyspark.sql.types import ArrayType, DoubleType
+from pyspark.sql.functions import col
+
 from split_data import split_dataset
 
 print("Pyspark version: {}".format(pyspark.__version__))
@@ -45,7 +49,7 @@ col_list = df.columns
 features_to_remove = ["GT"] # features to not be included in training for model
 features = list(set(col_list) - set(features_to_remove))
 
-# use VectorAssembler to add 'features' column to test_df, containing values of all features used for training
+# use VectorAssembler to add 'features' column to df, containing values of all features used for training
 vector_assembler = VectorAssembler(inputCols=features, outputCol="features")
 df = vector_assembler.transform(df)
 
@@ -72,8 +76,11 @@ model_path = cwd + "/Scripts/Trained_Models/" + sys.argv[1] + unique_identifier
 rf_model.save(model_path)
 print("Saved ", csv_dir, " model")
 
+
+test_data = test_data.drop("features") # deleting features col for CSV compatibility
+# test_data = test_data.withColumn("features", vector_to_array(col("features")))
+
 # save test data for later use
-test_data = test_data.drop("features") # deleting features col for future evaluation/shap compatibility
 test_csv_path = cwd + "/Data/Processed-Test/test_data" + unique_identifier
 test_data.write.option("header", True).mode("overwrite").csv(test_csv_path)
 print("Saved test data in Data/Processed-Test directory")
