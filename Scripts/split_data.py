@@ -23,7 +23,7 @@ def match_keyword(df: DataFrame, keyword: str):
         case "pbp":
             print("Commencing PBP isolation split as specified")
             training_data, test_data = isolate_attacks(df, ["PortScan", "FTP-Patator", "SSH-Patator"])
-        case _:
+        case '' | _:
             print("Commencing random split 70:30")
             training_data, test_data = df.randomSplit([0.7, 0.3])
     return training_data, test_data
@@ -43,7 +43,7 @@ def isolate_attacks(df: DataFrame, search_strings: list):
 
     if isolated_df.count() == 0:
         print("No rows containing requested attacks could be found")
-        return isolated_df, df
+        return df, isolated_df
     else:
         # remaining_df (to be used as training df) contains all rows in test_df that are not in the isolated test_df
         remaining_df = df.exceptAll(isolated_df)

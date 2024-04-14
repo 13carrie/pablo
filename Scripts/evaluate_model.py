@@ -1,7 +1,6 @@
 import os
 import sys
 from collections.abc import Iterator
-
 import numpy as np
 import pandas as pd
 import shap
@@ -32,11 +31,12 @@ def evaluate_model():
     abs_test_dir_path = get_test_data_directory(model_id)  # try to load test data with filename as [test_data-model_id]
     test_df = spark.read.csv(abs_test_dir_path, header=True,
                              inferSchema=True)  # recreating test dataframe from test csv
-    features_to_remove = ["GT"]  # features to not be included in training for model
+    features_to_remove = ["GT"]  # features to not be included in testing for model
     col_list = test_df.columns
     features = list(set(col_list) - set(features_to_remove))
 
     # use VectorAssembler to re-add 'features' column to test_df, containing values of all features used for training
+    test_df = test_df.drop("Label")
     vector_assembler = VectorAssembler(inputCols=features, outputCol="features")
     test_df = vector_assembler.transform(test_df)
     print("Rows in test dataset: ", test_df.count())
@@ -50,16 +50,17 @@ def evaluate_model():
     # print(predictions_df.head())
 
     # get performance metrics of saved model when tested on test_df, using predictions_df
-    # metric_start = time.time()
-    # get_prediction_metrics(predictions_df)
-    # metric_end = time.time() - metric_start
-    # print("Time to get performance metrics: ", metric_end)
+    metric_start = time.time()
+    get_prediction_metrics(predictions_df, label_col="GT", prediction_col="prediction")
+    metric_end = time.time() - metric_start
+    print("Time to get performance metrics: ", metric_end)
 
     # get shap values
     test_df.drop("features")
     print("Beginning SHAP value computation...")
     test_df = test_df.toPandas()
     shap_values = get_shap_values_multicore(saved_model, test_df)
+
 
 
 # returns 'unique' model information
@@ -78,28 +79,30 @@ def get_test_data_directory(model_id):
 
 
 # prints accuracy, precision, recall, f1, auc scores for model predictions on test data
-def get_prediction_metrics(predictions_df: DataFrame):
+def get_prediction_metrics(predictions_df: DataFrame, label_col: str, prediction_col: str):
     # assumption that predictions dataframe contains 'features', 'rawPrediction', 'probability', 'prediction' columns
-    eval_accuracy = MulticlassClassificationEvaluator(labelCol="GT", predictionCol="prediction", metricName="accuracy")
-    eval_precision = MulticlassClassificationEvaluator(labelCol="GT", predictionCol="prediction",
+    eval_accuracy = MulticlassClassificationEvaluator(labelCol=label_col, predictionCol=prediction_col, metricName="accuracy")
+    eval_precision = MulticlassClassificationEvaluator(labelCol=label_col, predictionCol=prediction_col,
                                                        metricName="precisionByLabel")
-    eval_recall = MulticlassClassificationEvaluator(labelCol="GT", predictionCol="prediction",
+    eval_recall = MulticlassClassificationEvaluator(labelCol=label_col, predictionCol=prediction_col,
                                                     metricName="recallByLabel")
-    eval_f1 = MulticlassClassificationEvaluator(labelCol="GT", predictionCol="prediction", metricName="f1")
-    eval_auc = BinaryClassificationEvaluator(labelCol="GT", rawPredictionCol="prediction")
+    eval_f1 = MulticlassClassificationEvaluator(labelCol=label_col, predictionCol=prediction_col, metricName="f1")
+    eval_auc_roc = BinaryClassificationEvaluator(labelCol=label_col, rawPredictionCol=prediction_col, metricName="areaUnderROC")
+    eval_auc_pr = BinaryClassificationEvaluator(labelCol=label_col, rawPredictionCol=prediction_col, metricName="areaUnderPR")
 
     accuracy = eval_accuracy.evaluate(predictions_df)
     f1_score = eval_f1.evaluate(predictions_df)
     precision = eval_precision.evaluate(predictions_df)
     recall = eval_recall.evaluate(predictions_df)
-    auc = eval_auc.evaluate(predictions_df)
+    auc_roc = eval_auc_roc.evaluate(predictions_df)
+    auc_pr = eval_auc_pr.evaluate(predictions_df)
 
     print(f"Accuracy: {accuracy}")
     print(f"F1-score: {f1_score}")
     print(f"Precision: {precision}")
     print(f"Recall: {recall}")
-    print(f"AUC (Area Under ROC Curve: {auc}")
-    # print("Matthews Correlation Coefficient (MCC): {:3f}")
+    print(f"Area Under ROC Curve: {auc_roc}")
+    print(f"Area Under PR Curve: {auc_pr}")
 
 
 # the original single-node implementation for getting shap values from a pandas df

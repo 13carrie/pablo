@@ -10,13 +10,10 @@ import time
 import sys
 import pyspark
 from pyspark.ml.classification import RandomForestClassifier
-from pyspark.ml.functions import vector_to_array
 from pyspark.sql import SparkSession
 from pyspark.ml.feature import VectorAssembler
 from datetime import datetime
-from pyspark.sql.types import ArrayType, DoubleType
-from pyspark.sql.functions import col
-
+from preprocess_cic import load_data
 from split_data import split_dataset
 
 print("Pyspark version: {}".format(pyspark.__version__))
@@ -29,36 +26,33 @@ spark = SparkSession.builder.appName("Pablo Experiment 1")\
 print("Created new Spark Session")
 
 # Loading preprocessed CSV files, and merging all of them into a single DataFrame
-csv_dir = sys.argv[1]
-csv_dir_path = "/Data/Processed/" + csv_dir
 cwd = os.getcwd()
-abs_path = cwd + csv_dir_path
+csv_dir = sys.argv[1]
+rel_csv_dir_path = "Data/Processed/" + csv_dir
+df = load_data(rel_csv_dir_path)
 
-# attempting to get test_df from specified csv
-try:
-    df = spark.read.csv(abs_path, header=True, inferSchema=True)
-    df.printSchema()
-except ValueError:
-    print("Failed to read csv, please ensure that data has been processed and stored in Data/Processed directory.")
 
-print("New dataframe created")
-
-# Define the features used by the classifier for training
-df = df.drop("Label") # drop label column since not numeric
-col_list = df.columns
-features_to_remove = ["GT"] # features to not be included in training for model
-features = list(set(col_list) - set(features_to_remove))
-
-# use VectorAssembler to add 'features' column to df, containing values of all features used for training
-vector_assembler = VectorAssembler(inputCols=features, outputCol="features")
-df = vector_assembler.transform(df)
-
-# create random forest classifier with hyperparams of gints + engelen's work
-rf = RandomForestClassifier(maxDepth=30, numTrees=100, labelCol="GT", featuresCol="features")
 
 # create train-test split:
 training_data, test_data = split_dataset(df, sys.argv)
 print("Train/Test data split successful.")
+
+# Define the features used by the classifier for training
+training_data = training_data.drop("Label") # drop label column since not numeric
+test_data = test_data.drop("Label")  # drop label column since not numeric
+
+col_list = df.columns
+features_to_remove = ["Label", "GT"]  # features to not be included in training for model
+features = list(set(col_list) - set(features_to_remove))
+
+# use VectorAssembler to add 'features' column to df, containing values of all features used for training
+vector_assembler = VectorAssembler(inputCols=features, outputCol="features")
+training_data = vector_assembler.transform(training_data)
+test_data = vector_assembler.transform(test_data)
+
+
+# create random forest classifier with hyperparams from engelen et al.
+rf = RandomForestClassifier(maxDepth=30, numTrees=100, labelCol="GT", featuresCol="features")
 
 # fit random forest model to training data
 print("Beginning training pipeline...")
@@ -78,7 +72,6 @@ print("Saved ", csv_dir, " model")
 
 
 test_data = test_data.drop("features") # deleting features col for CSV compatibility
-# test_data = test_data.withColumn("features", vector_to_array(col("features")))
 
 # save test data for later use
 test_csv_path = cwd + "/Data/Processed-Test/test_data" + unique_identifier
