@@ -31,8 +31,6 @@ csv_dir = sys.argv[1]
 rel_csv_dir_path = "Data/Processed/" + csv_dir
 df = load_data(rel_csv_dir_path)
 
-
-
 # create train-test split:
 training_data, test_data = split_dataset(df, sys.argv)
 print("Train/Test data split successful.")
@@ -42,8 +40,8 @@ training_data = training_data.drop("Label") # drop label column since not numeri
 test_data = test_data.drop("Label")  # drop label column since not numeric
 
 col_list = df.columns
-features_to_remove = ["Label", "GT"]  # features to not be included in training for model
-features = list(set(col_list) - set(features_to_remove))
+columns_to_exclude = ["Label", "GT"]  # features to not be included in training for model
+features = list(set(col_list) - set(columns_to_exclude))
 
 # use VectorAssembler to add 'features' column to df, containing values of all features used for training
 vector_assembler = VectorAssembler(inputCols=features, outputCol="features")
@@ -61,19 +59,15 @@ rf_model = rf.fit(training_data)
 end = time.time() - start
 print("Training pipeline time: ", end)
 
-# create unique model id for easy identification
-now = datetime.now()
-unique_identifier = now.strftime("-%d-%m-%Y-%H%M")
-
 # save model in trained_models dir
+now = datetime.now()
+unique_identifier = now.strftime("-%d-%m-%Y-%H%M") # create unique model id for easy identification
 model_path = cwd + "/Scripts/Trained_Models/" + sys.argv[1] + unique_identifier
 rf_model.save(model_path)
 print("Saved ", csv_dir, " model")
 
-
+# save test data for in test_data dir for later use
 test_data = test_data.drop("features") # deleting features col for CSV compatibility
-
-# save test data for later use
 test_csv_path = cwd + "/Data/Processed-Test/test_data" + unique_identifier
 test_data.write.option("header", True).mode("overwrite").csv(test_csv_path)
 print("Saved test data in Data/Processed-Test directory")

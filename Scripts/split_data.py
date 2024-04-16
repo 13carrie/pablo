@@ -48,3 +48,14 @@ def isolate_attacks(df: DataFrame, search_strings: list):
         # remaining_df (to be used as training df) contains all rows in test_df that are not in the isolated test_df
         remaining_df = df.exceptAll(isolated_df)
         return remaining_df, isolated_df
+
+def isolate_gt_label(df: DataFrame, attack_label):
+    isolated_df = df.filter(df["GT"] == attack_label)  # get df containing only specified attack
+
+    if isolated_df.count() == 0:
+        print("No rows containing requested attacks could be found")
+        return df, isolated_df
+    else:
+        # remaining_df (to be used as training df) contains all rows in test_df that are not in the isolated test_df
+        remaining_df = df.exceptAll(isolated_df)
+        return remaining_df, isolated_df
