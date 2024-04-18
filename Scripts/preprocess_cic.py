@@ -42,7 +42,7 @@ def load_data(csv_path: str) -> DataFrame:
     try:
         df = spark.read.csv(abs_path, header=True, inferSchema=True)
     except ValueError:
-        print("Failed to read csv, please ensure that data has been processed and stored in Data/Processed directory.")
+        print("Failed to read csv")
         raise ValueError
 
     print("New dataframe created")

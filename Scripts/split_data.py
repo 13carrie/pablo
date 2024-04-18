@@ -10,8 +10,8 @@ def split_dataset(df: DataFrame, args: list[str]):
     # if no specified split or an invalid specification, do default random split
     # if pbp specified, do pbp isolation split
     if len(args) <= 2:
-        print("No split specified, commencing random split 70:30")
-        training_data, test_data = df.randomSplit([0.7, 0.3])
+        print("No split specified, commencing random split 75:25")
+        training_data, test_data = df.randomSplit([0.75, 0.25])
     else:
         specified_split = args[2]
         training_data, test_data = match_keyword(df, specified_split)
@@ -24,8 +24,8 @@ def match_keyword(df: DataFrame, keyword: str):
             print("Commencing PBP isolation split as specified")
             training_data, test_data = isolate_attacks(df, ["PortScan", "FTP-Patator", "SSH-Patator"])
         case '' | _:
-            print("Commencing random split 70:30")
-            training_data, test_data = df.randomSplit([0.7, 0.3])
+            print("Commencing random split 75:25")
+            training_data, test_data = df.randomSplit([0.75, 0.25])
     return training_data, test_data
 
 
