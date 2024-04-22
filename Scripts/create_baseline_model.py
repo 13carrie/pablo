@@ -4,7 +4,6 @@
 # loader format by Giovanni Apruzzese from the University of Liechtenstein, 2022
 # spark implementation by Caroline Smith
 # King's College London, 2024
-
 import os
 import time
 import sys
@@ -25,6 +24,10 @@ spark = SparkSession.builder.appName("Pablo Experiment 1") \
     .config("spark.driver.memory", "15g") \
     .config("spark.executor.memory", "5g") \
     .config("spark.dynamicAllocation.enabled", "true") \
+    .config("spark.executor.cores", 7) \
+    .config("spark.default.parallelism", 7) \
+    .config("spark.dynamicAllocation.minExecutors", "1") \
+    .config("spark.dynamicAllocation.maxExecutors", "7") \
     .getOrCreate()
 
 print("Created new Spark Session")
@@ -83,18 +86,18 @@ pd_test_df = test_data.toPandas().drop(columns=['features', 'GT'])  # features c
 
 # step 2: get shap values
 shap_values, explainer = get_shap_values_multicore(rf_model, pd_test_df)
-print(type(shap_values))
-shap_values.info()
-shap_values.head()
 # step 3: get row indexes for observations to plot
-# portscan_index = get_row_with_matching_cols_index(test_data, 10.0, "GT", "prediction")
-# ssh_index = get_row_with_matching_cols_index(test_data, 11.0, "GT", "prediction")
-# ftp_index = get_row_with_matching_cols_index(test_data, 7.0, "GT", "prediction")
-#
-# # step 4: make plots
-# indexes = [portscan_index, ssh_index, ftp_index]
-# plot_shap_force(shap_values, explainer, pd_test_df, indexes)
-#
+portscan_index = get_row_with_matching_cols_index(test_data, 10.0, "GT", "prediction")
+ssh_index = get_row_with_matching_cols_index(test_data, 11.0, "GT", "prediction")
+ftp_index = get_row_with_matching_cols_index(test_data, 7.0, "GT", "prediction")
+
+# step 4: make plots data
+indexes = [portscan_index, ssh_index, ftp_index]
+
+# Plot SHAP force plots
+plot_shap_force(shap_values, explainer, pd_test_df, indexes)
+
+
 # # save model in trained_models dir
 # now = datetime.now()
 # unique_identifier = now.strftime("-%d-%m-%Y-%H%M")  # create unique model id for easy identification
