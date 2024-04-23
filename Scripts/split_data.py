@@ -77,3 +77,14 @@ def get_row_with_matching_cols_index(df: DataFrame, val, col_1: str, col_2: str)
     if index is None:
         print("index not found for these values and columns")
     return index
+
+def get_row_with_matching_cols(df: DataFrame, val, col_1: str, col_2: str):
+    return_row = None
+    df_collect = df.collect()
+    for row in df_collect:
+        if (row.__getitem__(col_1) == val) and (row.__getitem__(col_2) == val):
+            return_row = row
+            break
+    if return_row is None:
+        print("index not found for these values and columns")
+    return return_row

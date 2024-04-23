@@ -5,18 +5,24 @@ import numpy as np
 import pandas as pd
 import shap
 import time
-from pyspark.sql.functions import when, col
+from pyspark.sql.functions import when  # , col
 from pyspark.ml.classification import RandomForestClassificationModel
 from pyspark.ml.feature import VectorAssembler
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 from pyspark.ml.evaluation import BinaryClassificationEvaluator
-from pyspark.sql.types import StructType, StructField, FloatType, DoubleType
-from split_data import isolate_gt_label
+from pyspark.sql.types import StructType, StructField, FloatType  # , DoubleType
+# from split_data import isolate_gt_label
 
 
 spark = SparkSession.builder.appName("Pablo Evaluation") \
-    .config("spark.driver.memory", "15g") \
+    .config("spark.driver.memory", "5g") \
+    .config("spark.executor.memory", "5g") \
+    .config("spark.dynamicAllocation.enabled", "true") \
+    .config("spark.executor.cores", 7) \
+    .config("spark.default.parallelism", 7) \
+    .config("spark.dynamicAllocation.minExecutors", "1") \
+    .config("spark.dynamicAllocation.maxExecutors", "7") \
     .getOrCreate()
 
 cwd = os.getcwd()
@@ -122,10 +128,10 @@ def get_predictions_data_directory(model_id):
 # the original single-node implementation for getting shap values from a pandas df, not used due to lack of efficiency
 def get_shap_values(model, test_df):
     # create shap explainer with values
-    test_df = test_df.drop(columns=['features'])  # features' 'sparsevector' type is not compatible with shap
+    # test_df = test_df.drop(columns=['features'])  # features' 'sparsevector' type is not compatible with shap
     explainer = shap.TreeExplainer(model)
-    shap_values = explainer.shap_values(test_df, check_additivity=False)
-    return shap_values
+    shap_values = explainer.shap_values(test_df, check_additivity=False)  # check_additivity false for pyspark compatibility
+    return shap_values, explainer
 
 
 # the multi-node implementation for getting shap values from a pandas df
@@ -153,9 +159,14 @@ def get_shap_values_multicore(model, test_df):
     # must be spark df so that data is compatible with calculate_shap
     spark_test_df = spark.createDataFrame(test_df)
     shap_values = spark_test_df.mapInPandas(calculate_shap, schema=return_schema)
-    shap_values = np.array(shap_values.collect())  # Extract shap values as array from the dataframe
-    shap_values = shap_values.reshape(
-        (shap_values.shape[0], len(test_df.columns), -1))  # convert SHAP values to the correct shape
+    print("made spark shap_values df")
+
+    # Process SHAP values directly within Spark DataFrame API
+    shap_values = shap_values.rdd.map(lambda row: np.array(row[0])).collect()
+
+    # Convert SHAP values to the correct shape
+    shap_values = np.array(shap_values)
+    shap_values = shap_values.reshape((shap_values.shape[0], len(test_df.columns), -1))
 
     print("Got SHAP values")
     end = time.time() - start
@@ -163,11 +174,31 @@ def get_shap_values_multicore(model, test_df):
     return shap_values, explainer
 
 
-def plot_shap_force(shap_values, explainer, df, indexes, class_index):
-    for index in indexes:
+def plot_shap_force(shap_values, explainer, df, index, class_index):
+    if len(shap_values) > 1:  # Check if multi-class SHAP values
+        if len(shap_values[class_index].shape) == 2:  # Check if the specific class has 2 dimensions
+            shap.force_plot(
+                explainer.expected_value[class_index],  # use expected value for the specified class
+                shap_values[class_index][index],  # extract SHAP values for the specified class and observation
+                df.iloc[index],  # original input data for the observation
+                show=True
+            )
+        else:  # Single-dimensional SHAP values for the specified class
+            shap.force_plot(
+                explainer.expected_value[class_index],  # use expected value for the specified class
+                shap_values[class_index],  # extract SHAP values for the specified class
+                df.iloc[index],  # original input data for the observation
+                show=True
+            )
+    else:  # Single-class SHAP values
         shap.force_plot(
-            explainer.expected_value[class_index], # use expected value for the specified class
-            shap_values[index][:, :, class_index],  # extract SHAP values for the specified class
+            explainer.expected_value[class_index],  # use expected value for the specified class
+            shap_values[index],  # extract SHAP values for the specified observation
             df.iloc[index],  # original input data for the observation
             show=True
         )
+
+def plot_shap_summary(shap_values, df, class_names):
+    shap.summary_plot(
+        shap_values, df, class_names=class_names
+    )
