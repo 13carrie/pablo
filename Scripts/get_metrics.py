@@ -1,18 +1,14 @@
 import os
-import sys
 from collections.abc import Iterator
 import numpy as np
 import pandas as pd
 import shap
 import time
-from pyspark.sql.functions import when  # , col
-from pyspark.ml.classification import RandomForestClassificationModel
-from pyspark.ml.feature import VectorAssembler
+from pyspark.sql.functions import when
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 from pyspark.ml.evaluation import BinaryClassificationEvaluator
-from pyspark.sql.types import StructType, StructField, FloatType  # , DoubleType
-# from split_data import isolate_gt_label
+from pyspark.sql.types import StructType, StructField, FloatType
 
 
 spark = SparkSession.builder.appName("Pablo Evaluation") \
@@ -28,46 +24,7 @@ spark = SparkSession.builder.appName("Pablo Evaluation") \
 cwd = os.getcwd()
 
 
-def evaluate_model():
-    # get model information based on provided command line argument
-    model_arg = sys.argv[1]  # retrieve model name stored under trained_models
-    model_name, abs_model_path, model_id = get_unique_model_info(model_arg)
-    print("Loading saved model...")
-    saved_model = RandomForestClassificationModel.load(abs_model_path)
-
-    abs_test_dir_path = get_test_data_directory(model_id)  # try to load test data with filename as [test_data-model_id]
-    test_df = spark.read.csv(abs_test_dir_path, header=True, inferSchema=True)  # recreating test dataframe from test csv
-    cols_to_remove = ["GT"]  # features to not be included in testing for model
-    col_list = test_df.columns
-    features = list(set(col_list) - set(cols_to_remove))
-
-    # use VectorAssembler to re-add 'features' column to test_df, containing values of all features used for training
-    vector_assembler = VectorAssembler(inputCols=features, outputCol="features")
-    test_df = vector_assembler.transform(test_df)
-    print("Rows in test dataset: ", test_df.count())
-    test_df.printSchema()
-
-    # get dataframe with additional 'features', 'rawPrediction', 'probability', and 'prediction' columns
-    pred_start = time.time()
-    predictions_df = saved_model.transform(test_df)
-    pred_end = time.time() - pred_start
-    print("Time to get prediction outputs: ", pred_end)
-
-    random_df = predictions_df.sample(0.05)
-    print(random_df.select("GT", "prediction").show(50))
-
-    # get performance metrics of saved model when tested on test_df, using predictions_dataframe
-    # also get binary performance metrics (i.e. was it still able to identify generally if data was benign or malicious?)
-    metric_start = time.time()
-    get_holistic_prediction_metrics(predictions_df, label_col="GT", prediction_col="prediction")
-    metric_end = time.time() - metric_start
-    print("Time to get all performance metrics for classification: ", metric_end)
-
-    predictions_csv_path = cwd + "/Data/Results/predictions_data" + model_id
-    predictions_df.write.option("header", True).mode("overwrite").csv(predictions_csv_path)
-
-
-# returns 'unique' model information
+# returns 'unique' model information, i.e. the identifiers used to reload data
 def get_unique_model_info(model_name):
     model_path = cwd + "/Scripts/Trained_Models/" + model_name  # get absolute path of model
     model_id = model_name[-15:]  # model_id = isolate unique model id from trained_model file name
@@ -79,15 +36,6 @@ def get_test_data_directory(model_id):
     test_dir = "/Data/Processed-Test/" + "test_data-" + model_id  # directory of test data file that matches with model
     abs_test_dir_path = cwd + test_dir  # absolute path of test data directory
     return abs_test_dir_path
-
-# returns both binary and multiclass evaluation of model performance
-# i.e. ability of model to correctly classify individual classes
-# as well as ability of model to correctly classify traffic generally, either as malicious or benign
-def get_holistic_prediction_metrics(predictions_df: DataFrame, label_col: str, prediction_col: str):
-    get_prediction_metrics(predictions_df, label_col=label_col, prediction_col=prediction_col)
-
-    binary_predictions_df = convert_to_binary_classification(predictions_df)  # if benign, 0; else 1
-    get_prediction_metrics(binary_predictions_df, label_col="GT", prediction_col="prediction")
 
 
 # prints accuracy, precision, recall, f1, auc scores for model predictions on test data
@@ -112,20 +60,8 @@ def get_prediction_metrics(predictions_df: DataFrame, label_col: str, prediction
     print(f"Area Under PR Curve: {auc_pr}")
 
 
-def convert_to_binary_classification(predictions_df: DataFrame):
-    predictions_df = predictions_df.withColumn("GT", when(predictions_df["GT"] == 0.0, 0.0).otherwise(1.0))
-    predictions_df = predictions_df.withColumn("prediction", when(predictions_df["prediction"] == 0.0, 0.0).otherwise(1.0))
-    return predictions_df
 
-
-# returns absolute path to test data directory
-def get_predictions_data_directory(model_id):
-    test_dir = "/Data/Results/predictions_data" + model_id  # directory of test data file that matches with model
-    abs_preds_dir_path = cwd + test_dir  # absolute path of test data directory
-    return abs_preds_dir_path
-
-
-# the original single-node implementation for getting shap values from a pandas df, not used due to lack of efficiency
+# the original single-node implementation for getting shap values from a pandas df
 def get_shap_values(model, test_df):
     # create shap explainer with values
     # test_df = test_df.drop(columns=['features'])  # features' 'sparsevector' type is not compatible with shap
@@ -134,7 +70,7 @@ def get_shap_values(model, test_df):
     return shap_values, explainer
 
 
-# the multi-node implementation for getting shap values from a pandas df
+# the multi-node implementation for getting shap values from a pandas df, not used due to lack of computational power
 # calculate_shap udf and four lines below are from https://www.databricks.com/blog/2022/02/02/scaling-shap-calculations-with-pyspark-and-pandas-udf.html
 def get_shap_values_multicore(model, test_df):
     start = time.time()
@@ -175,30 +111,4 @@ def get_shap_values_multicore(model, test_df):
 
 
 def plot_shap_force(shap_values, explainer, df, index, class_index):
-    if len(shap_values) > 1:  # Check if multi-class SHAP values
-        if len(shap_values[class_index].shape) == 2:  # Check if the specific class has 2 dimensions
-            shap.force_plot(
-                explainer.expected_value[class_index],  # use expected value for the specified class
-                shap_values[class_index][index],  # extract SHAP values for the specified class and observation
-                df.iloc[index],  # original input data for the observation
-                show=True
-            )
-        else:  # Single-dimensional SHAP values for the specified class
-            shap.force_plot(
-                explainer.expected_value[class_index],  # use expected value for the specified class
-                shap_values[class_index],  # extract SHAP values for the specified class
-                df.iloc[index],  # original input data for the observation
-                show=True
-            )
-    else:  # Single-class SHAP values
-        shap.force_plot(
-            explainer.expected_value[class_index],  # use expected value for the specified class
-            shap_values[index],  # extract SHAP values for the specified observation
-            df.iloc[index],  # original input data for the observation
-            show=True
-        )
-
-def plot_shap_summary(shap_values, df, class_names):
-    shap.summary_plot(
-        shap_values, df, class_names=class_names
-    )
+    return

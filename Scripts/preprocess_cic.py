@@ -58,7 +58,7 @@ def clean_dataframe(df: DataFrame) -> DataFrame:
     df = df.replace(to_replace=[np.inf, -np.inf], value=None)
     df = df.dropna(how="any")  # Deleting any rows with null/None values
     df = df.filter(col('Label') != 'ATTEMPTED')  # Deleting any rows with 'attempted' attacks, otherwise attempted
-    # portscan/patator attacks would be included in training for novel attacks (snooping)
+    # portscan/patator attacks could be included in training for novel attacks (snooping)
     df = df.drop_duplicates()  # Deleting rows with duplicate values for all features
     return df
 

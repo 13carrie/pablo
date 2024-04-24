@@ -51,21 +51,6 @@ def isolate_attacks(df: DataFrame, search_strings: list):
         return remaining_df, isolated_df
 
 
-# returns two dataframes:
-# isolated_df contains the data where the double GT label == the specified double attack_label
-# remaining_df contains all other data
-def isolate_gt_label(df: DataFrame, attack_label):
-    isolated_df = df.filter(df["GT"] == attack_label)  # get df containing only specified attack
-
-    if isolated_df.count() == 0:
-        print("No rows containing requested attacks could be found")
-        return df, isolated_df
-    else:
-        # remaining_df (to be used as training df) contains all rows in test_df that are not in the isolated test_df
-        remaining_df = df.exceptAll(isolated_df)
-        return remaining_df, isolated_df
-
-
 # get index of random row of a pyspark dataframe where two columns are equivalent to a passed value
 def get_row_with_matching_cols_index(df: DataFrame, val, col_1: str, col_2: str):
     index = None
@@ -78,6 +63,7 @@ def get_row_with_matching_cols_index(df: DataFrame, val, col_1: str, col_2: str)
         print("index not found for these values and columns")
     return index
 
+# similar to above function, but returns the row rather than the index
 def get_row_with_matching_cols(df: DataFrame, val, col_1: str, col_2: str):
     return_row = None
     df_collect = df.collect()
