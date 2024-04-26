@@ -4,6 +4,7 @@ from pyspark.ml.feature import StringIndexer
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import *
 import sys
+from pyspark.sql.functions import col
 from pyspark.sql.types import IntegerType
 
 # do all data preprocessing for a csv file and store it in the data/processed directory for easy use by models
@@ -29,7 +30,6 @@ def preprocess_data(csv_dir: str):
     df = load_data(rel_csv_path)
     df = clean_dataframe(df)
     df = create_ground_truth(df)
-    df.printSchema()
     new_csv_path = os.getcwd() + "/Data/Processed/" + csv_dir
     df.write.option("header", True).mode("overwrite").csv(new_csv_path)
 
@@ -57,8 +57,15 @@ def clean_dataframe(df: DataFrame) -> DataFrame:
     df = df.drop('Timestamp', 'Dst IP', 'Src IP', 'Flow ID')  # dropping unnecessary columns
     df = df.replace(to_replace=[np.inf, -np.inf], value=None)
     df = df.dropna(how="any")  # Deleting any rows with null/None values
-    df = df.filter(col('Label') != 'ATTEMPTED')  # Deleting any rows with 'attempted' attacks, otherwise attempted
-    # portscan/patator attacks could be included in training for novel attacks (snooping)
+    # List of substrings to check for in Label column
+    attempted_substrings = ['DoS Hulk - Attempted', 'Web Attack - XSS - Attempted',
+                            'DoS Slowhttptest - Attempted', 'Web Attack - Brute Force - Attempted',
+                            'FTP-Patator - Attempted', 'Bot - Attempted', 'DoS GoldenEye - Attempted',
+                            'Infiltration - Attempted', 'DoS slowloris - Attempted', 'SSH-Patator - Attempted']
+
+    # Filter out rows with Label containing any of the specified substrings
+    df = df.filter(~col('Label').rlike('|'.join(attempted_substrings)))
+    # attempted attacks should not be included in training for novel attacks (snooping)
     df = df.drop_duplicates()  # Deleting rows with duplicate values for all features
     return df
 

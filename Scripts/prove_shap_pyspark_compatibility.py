@@ -26,7 +26,7 @@ df = stage_2.transform(df)
 print("transformed dataframe for features")
 
 # split into train/test dfs
-train, test = df.randomSplit([0.7, 0.3], seed=2018)
+train, test = df.randomSplit([0.7, 0.3], seed=2024)
 print("successfully split data")
 
 rf = RandomForestClassifier(featuresCol="features", labelCol="GT")
@@ -43,6 +43,3 @@ print(test_pandas.head())
 # create shap explainer with values
 explainer = shap.TreeExplainer(rfModel)
 shap_values = explainer.shap_values(test_pandas, check_additivity=False)
-# print(shap_values[0])
-
-# shap.summary_plot(shap_values, test_pandas)

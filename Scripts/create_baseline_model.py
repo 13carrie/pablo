@@ -18,15 +18,15 @@ from pyspark.ml.classification import RandomForestClassifier
 from pyspark.sql import SparkSession
 from pyspark.ml.feature import VectorAssembler
 from preprocess_cic import load_data
-from split_data import split_dataset, get_row_with_matching_cols_index, get_row_with_matching_cols
+from split_data import split_dataset, get_row_with_matching_cols, get_gt_row
 from get_metrics import get_shap_values, get_prediction_metrics
 
 print("Pyspark version: {}".format(pyspark.__version__))
 
 # Creating new Spark Session configured with larger memory space
-spark = SparkSession.builder.appName("Pablo Experiment 1") \
-    .config("spark.driver.memory", "5g") \
-    .config("spark.executor.memory", "5g") \
+spark = SparkSession.builder.appName("Pablo Experiment") \
+    .config("spark.driver.memory", "7g") \
+    .config("spark.executor.memory", "10g") \
     .config("spark.dynamicAllocation.enabled", "true") \
     .config("spark.executor.cores", 7) \
     .config("spark.default.parallelism", 7) \
@@ -38,12 +38,23 @@ print("Created new Spark Session")
 
 # Loading preprocessed CSV files, and merging all of them into a single DataFrame
 cwd = os.getcwd()
+args = sys.argv
 csv_dir = sys.argv[1]
+
+if len(args) > 2 and args[2] == 'pbp':
+    is_pbp = True
+else:
+    is_pbp = False
 rel_csv_dir_path = "Data/Processed/" + csv_dir
+
 df = load_data(rel_csv_dir_path)
 
 # create train-test split:
-training_data, test_data = split_dataset(df, sys.argv)
+training_data, test_data = split_dataset(df, args)
+print("assert test contains GT 10: ", test_data.filter(test_data['GT'] == 10.0).count())
+print("assert test contains GT 11: ", test_data.filter(test_data['GT'] == 11.0).count())
+print("assert test contains GT 7: ", test_data.filter(test_data['GT'] == 7.0).count())
+
 print("Train/Test data split successful.")
 
 # Define the features used by the classifier for training
@@ -71,69 +82,57 @@ print("Training pipeline time: ", end)
 # get dataframe with additional 'rawPrediction', 'probability', and 'prediction' columns
 pred_start = time.time()
 predictions_df = rf_model.transform(test_data)
+print(predictions_df.select("GT", "prediction").show(25))
 pred_end = time.time() - pred_start
 print("Time to get prediction outputs: ", pred_end)
 
 # get performance metrics of saved model when tested on test_data, using predictions_dataframe
 metric_start = time.time()
-get_prediction_metrics(predictions_df, label_col="GT", prediction_col="prediction")
+get_prediction_metrics(predictions_df, label_col="GT", prediction_col="prediction", split=args)
 metric_end = time.time() - metric_start
 print("Time to get performance metrics for total classification: ", metric_end)
 
-
-# step 1: create dataframe containing selected values
-# get observations that you want to plot
-portscan_row = get_row_with_matching_cols(predictions_df, 10.0, "GT", "prediction")
-ssh_row = get_row_with_matching_cols(predictions_df, 11.0, "GT", "prediction")
-ftp_row = get_row_with_matching_cols(predictions_df, 7.0, "GT", "prediction")
+# step 1: create dataframe containing selected observations to plot
+if is_pbp:  # likely no correctly predicted rows, instead plot any portscan/ssh/ftp row
+    print("pbp selected, doing get_gt_row now")
+    portscan_row = get_gt_row(predictions_df, 10.0, "GT")
+    ssh_row = get_gt_row(predictions_df, 11.0, "GT")
+    ftp_row = get_gt_row(predictions_df, 7.0, "GT")
+else:  # likely high-performance, can be trusted to have correctly predicted rows
+    print("regular situation")
+    portscan_row = get_row_with_matching_cols(predictions_df, 10.0, "GT", "prediction")
+    ssh_row = get_row_with_matching_cols(predictions_df, 11.0, "GT", "prediction")
+    ftp_row = get_row_with_matching_cols(predictions_df, 7.0, "GT", "prediction")
 
 rows = [portscan_row, ssh_row, ftp_row]
 selected_rows_df = spark.createDataFrame(rows)  # make df containing only the observations you want to plot
-
-
-# step 2: get new indexes of dataframe
-portscan_index = get_row_with_matching_cols_index(selected_rows_df, 10.0, "GT", "prediction")
-ssh_index = get_row_with_matching_cols_index(selected_rows_df, 11.0, "GT", "prediction")
-ftp_index = get_row_with_matching_cols_index(selected_rows_df, 7.0, "GT", "prediction")
 pd_df = selected_rows_df.drop('features', 'GT', 'rawPrediction',
                               'probability').toPandas()  # make SHAP-compatible pandas version of df
-print(pd_df.columns)
 
-# step 3: get shap values
+# step 2: get shap values
 # shap_values, explainer = get_shap_values_multicore(rf_model, pd_df)
 shap_values, explainer = get_shap_values(rf_model, pd_df)
 
-# step 4: make plots according to attack class
+# step 3: make plots according to attack class
 class_names = [10, 11, 7]
-index = 0
+
 print("portscan plot: ")
-shap.force_plot(explainer.expected_value[10],
+index = 0
+shap.force_plot(explainer.expected_value[0],
                 shap_values[0][index],
                 pd_df.iloc[index, :], matplotlib=True)
 
-# shap.force_plot(explainer.expected_value[0],
-#                 shap_values[0][index],
-#                 pd_df.iloc[index, :], matplotlib=True)
-
-index = 1
 print("ssh plot: ")
-shap.force_plot(explainer.expected_value[11],
+index = 1
+shap.force_plot(explainer.expected_value[1],
                 shap_values[1][index],
                 pd_df.iloc[index, :], matplotlib=True)
 
-# shap.force_plot(explainer.expected_value[1],
-#                 shap_values[1][index],
-#                 pd_df.iloc[index, :], matplotlib=True)
-
-index = 2
 print("ftp plot: ")
-shap.force_plot(explainer.expected_value[7],
+index = 2
+shap.force_plot(explainer.expected_value[2],
                 shap_values[2][index],
                 pd_df.iloc[index, :], matplotlib=True)
-
-# shap.force_plot(explainer.expected_value[2],
-#                 shap_values[2][index],
-#                 pd_df.iloc[index, :], matplotlib=True)
 
 # save model in trained_models dir
 now = datetime.now()

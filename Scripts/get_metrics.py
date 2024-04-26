@@ -11,9 +11,9 @@ from pyspark.ml.evaluation import BinaryClassificationEvaluator
 from pyspark.sql.types import StructType, StructField, FloatType
 
 
-spark = SparkSession.builder.appName("Pablo Evaluation") \
-    .config("spark.driver.memory", "5g") \
-    .config("spark.executor.memory", "5g") \
+spark = SparkSession.builder.appName("Pablo Experiment") \
+    .config("spark.driver.memory", "7g") \
+    .config("spark.executor.memory", "10g") \
     .config("spark.dynamicAllocation.enabled", "true") \
     .config("spark.executor.cores", 7) \
     .config("spark.default.parallelism", 7) \
@@ -39,18 +39,44 @@ def get_test_data_directory(model_id):
 
 
 # prints accuracy, precision, recall, f1, auc scores for model predictions on test data
-def get_prediction_metrics(predictions_df: DataFrame, label_col: str, prediction_col: str):
+def get_prediction_metrics(predictions_df: DataFrame, label_col: str, prediction_col: str, split: list):
+    if len(split) > 2 and split == 'pbp':
+        test_labels = [7.0, 10.0, 11.0]
+        predictions_df = predictions_df.filter(predictions_df[label_col].isin(test_labels))
+
     # assumption that predictions dataframe contains 'features', 'rawPrediction', 'probability', 'prediction' columns
     eval_accuracy = MulticlassClassificationEvaluator(labelCol=label_col, predictionCol=prediction_col, metricName="accuracy")
-    eval_precision = MulticlassClassificationEvaluator(labelCol=label_col, predictionCol=prediction_col, metricName="precisionByLabel")
-    eval_recall = MulticlassClassificationEvaluator(labelCol=label_col, predictionCol=prediction_col, metricName="recallByLabel")
-    eval_f1 = MulticlassClassificationEvaluator(labelCol=label_col, predictionCol=prediction_col, metricName="f1")
-    eval_auc_pr = BinaryClassificationEvaluator(labelCol=label_col, rawPredictionCol=prediction_col, metricName="areaUnderPR")
     accuracy = eval_accuracy.evaluate(predictions_df)
-    f1_score = eval_f1.evaluate(predictions_df)
-    precision = eval_precision.evaluate(predictions_df)
-    recall = eval_recall.evaluate(predictions_df)
-    auc_pr = eval_auc_pr.evaluate(predictions_df)
+
+    try:
+        eval_precision = MulticlassClassificationEvaluator(labelCol=label_col, predictionCol=prediction_col,
+                                                           metricName="precisionByLabel")
+        precision = eval_precision.evaluate(predictions_df)
+    except Exception as e:
+        print("Warning: Precision not able to be evaluated.")
+        precision = None
+    try:
+        eval_recall = MulticlassClassificationEvaluator(labelCol=label_col, predictionCol=prediction_col,
+                                                        metricName="recallByLabel")
+        recall = eval_recall.evaluate(predictions_df)
+    except Exception as e:
+        print("Warning: Recall not able to be evaluated.")
+        recall = None
+
+    try:
+        eval_f1 = MulticlassClassificationEvaluator(labelCol=label_col, predictionCol=prediction_col, metricName="f1")
+        f1_score = eval_f1.evaluate(predictions_df)
+    except Exception as e:
+        print("Warning: F1 not able to be evaluated.")
+        f1_score = None
+
+    try:
+        eval_auc_pr = BinaryClassificationEvaluator(labelCol=label_col, rawPredictionCol=prediction_col,
+                                                    metricName="areaUnderPR")
+        auc_pr = eval_auc_pr.evaluate(predictions_df)
+    except Exception as e:
+        print("AUC Pr could not be evaluated")
+        auc_pr = None
 
     print(f"Metrics for comparison of {label_col} to {prediction_col}")
     print(f"Accuracy: {accuracy}")
@@ -108,7 +134,3 @@ def get_shap_values_multicore(model, test_df):
     end = time.time() - start
     print("SHAP computation time: ", end)
     return shap_values, explainer
-
-
-def plot_shap_force(shap_values, explainer, df, index, class_index):
-    return
